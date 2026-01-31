@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Perceptual Speed Test for SDP - WCO</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#0f172a; padding:20px; color:#e5e7eb; }
+    .card { background:#020617; padding:24px; border-radius:16px; max-width:900px; margin:auto; box-shadow:0 20px 40px rgba(0,0,0,.5); }
+    h1 { text-align:center; margin-bottom:5px; }
+    .timer { font-size:26px; font-weight:bold; text-align:center; margin:10px 0; }
+    .timer.green { color:#22c55e; }
+    .timer.yellow { color:#facc15; }
+    .timer.red { color:#ef4444; animation: blink 1s infinite; }
+    @keyframes blink { 50% { opacity:0.4; } }
+    .progress { text-align:center; font-weight:bold; margin-bottom:10px; }
+    .instruction { text-align:center; margin-bottom:10px; }
+    .items { margin:20px 0; text-align:center; }
+    .item { display:inline-block; background:#1e293b; padding:12px 18px; margin:6px; border-radius:10px; cursor:pointer; user-select:none; }
+    .item.selected { background:#2563eb; color:#fff; }
+    button { padding:12px 22px; border:none; border-radius:10px; background:#22c55e; color:#052e16; font-size:16px; cursor:pointer; margin:10px auto; display:block; }
+    button.secondary { background:#38bdf8; color:#082f49; }
+    .result { margin-top:20px; text-align:center; }
+  </style>
+</head>
+<body>
+
+<div class="card" id="test">
+  <h1>Perceptual Speed Test</h1>
+  <div class="instruction" id="instruction"></div>
+  <div class="timer green" id="timer">10:00</div>
+  <div class="progress" id="progress">Soal 1 / 100</div>
+  <div class="items" id="items"></div>
+  <button onclick="submitQuestion()">Lewati / Soal Berikutnya</button>
+  <div class="result" id="result"></div>
+</div>
+
+<script>
+const TOTAL_QUESTIONS = 100;
+const TIME_LIMIT = 600;
+let currentQuestion = 0;
+let correctCount = 0;
+let userAnswer = [];
+let correct = [];
+let resultsLog = [];
+let kandidat = {};
+
+const generators = [
+  () => { const i = genTimes(); return { t:'Urutkan jadwal dari yang paling awal', i, c:[...i].sort(), cat:'Waktu Awal' }; },
+  () => { const i = genTimes(); return { t:'Urutkan waktu dari yang paling lambat', i, c:[...i].sort().reverse(), cat:'Waktu Akhir' }; },
+  () => { const i = randPick(['Apel','Anggur','Alpukat','Mangga','Durian','Pisang','Pepaya','Jeruk','Nanas','Melon','Semangka','Bandung','Jakarta','Bogor','Depok','Tangerang','Bekasi','Semarang','Solo','Magelang','Surakarta','Yogyakarta','Malang','Surabaya','Denpasar','Mataram','Kupang','Medan','Padang','Palembang','Lampung'],5); return { t:'Urutkan kata dari  A sampai Z', i, c:[...i].sort(), cat:'Abjad AZ' }; },
+  () => { const i = randPick(['Andi','Budi','Cici','Dani','Edi','Ahmad','Abdul','Ahmad Yani','Abdul Rahman','Rizky','Fajar','Aisyah','Putri','Dewi','Siti','Nur','Agus','Hendra','Wahyu','Bayu','Rina','Intan','Farhan','Ilham','Arif','Rafi','Nabila','Zahra','Aulia','Bagus','Yoga','Yusuf','Hasan','Ali','Salman'],5); return { t:'Urutkan kata dari Z sampai  A', i, c:[...i].sort().reverse(), cat:'Abjad ZA' }; }
+];
+
+function genTimes(){
+  let a = [];
+  while(a.length < 5){
+    let h = String(Math.floor(Math.random()*24)).padStart(2,'0');
+    let m = ['00','15','30','45'][Math.floor(Math.random()*4)];
+    let t = `${h}.${m}`;
+    if(!a.includes(t)) a.push(t);
+  }
+  return a;
+}
+
+function randPick(arr, n){
+  return [...arr].sort(() => 0.5 - Math.random()).slice(0, n);
+}
+
+function startTest(){
+  kandidat = { waktuMulai: new Date().toISOString() };
+  loadQuestion();
+  startTimer();
+}
+
+let q = {};
+function loadQuestion(){
+  q = generators[Math.floor(Math.random()*generators.length)]();
+  correct = q.c;
+  userAnswer = [];
+  document.getElementById('instruction').innerText = q.t;
+  const itemsEl = document.getElementById('items');
+  itemsEl.innerHTML = '';
+  q.i.forEach(v => {
+    const el = document.createElement('span');
+    el.className = 'item';
+    el.innerText = v;
+    el.onclick = () => selectItem(el, v);
+    itemsEl.appendChild(el);
+  });
+}
+
+function selectItem(el, v){
+  if(userAnswer.includes(v)) return;
+  userAnswer.push(v);
+  el.classList.add('selected');
+  if(userAnswer.length === correct.length) submitQuestion();
+}
+
+function submitQuestion(){
+  const benar = JSON.stringify(userAnswer) === JSON.stringify(correct);
+  if(benar) correctCount++;
+  resultsLog.push({ no: currentQuestion+1, kategori: q.cat, benar });
+  currentQuestion++;
+  if(currentQuestion >= TOTAL_QUESTIONS){ finishTest(); return; }
+  document.getElementById('progress').innerText = `Soal ${currentQuestion+1} / ${TOTAL_QUESTIONS}`;
+  loadQuestion();
+}
+
+let time = TIME_LIMIT;
+let interval = null;
+function fmt(t){
+  return String(Math.floor(t/60)).padStart(2,'0') + ':' + String(t%60).padStart(2,'0');
+}
+
+function startTimer(){
+  const timerEl = document.getElementById('timer');
+  timerEl.innerText = fmt(time);
+  interval = setInterval(() => {
+    time--;
+    timerEl.innerText = fmt(time);
+    timerEl.className = 'timer ' + (time > 300 ? 'green' : time > 60 ? 'yellow' : 'red');
+    if(time <= 0){ clearInterval(interval); finishTest(); }
+  }, 1000);
+}
+
+function finishTest(){
+  if(interval) clearInterval(interval);
+  document.getElementById('items').innerHTML = '';
+  kandidat.waktuSelesai = new Date().toISOString();
+  kandidat.benar = correctCount;
+  kandidat.total = currentQuestion;
+  kandidat.akurasi = currentQuestion > 0 ? Math.round((correctCount/currentQuestion)*100) : 0;
+  kandidat.waktuPakai = TIME_LIMIT - time;
+  simpanHasil();
+  document.getElementById('result').innerHTML = `<h2>Tes Selesai</h2><p>Akurasi: ${kandidat.akurasi}%</p><button class="secondary" onclick="downloadAdminCSV()">Download Semua Hasil (Admin)</button>`;
+}
+
+function simpanHasil(){
+  let data = JSON.parse(localStorage.getItem('hasilTes') || '[]');
+  data.push({ kandidat, detail: resultsLog });
+  localStorage.setItem('hasilTes', JSON.stringify(data));
+}
+
+function downloadAdminCSV(){
+  let data = JSON.parse(localStorage.getItem('hasilTes') || '[]');
+  let csv = 'Akurasi,Waktu(detik)\n';
+  data.forEach(d => {
+    csv += `${d.kandidat.akurasi},${d.kandidat.waktuPakai}\n`;
+  });
+  const blob = new Blob([csv], { type:'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'rekap_hasil_kandidat.csv';
+  a.click();
+}
+
+// auto start test when page loads
+startTest();
+</script>
+</body>
+</html>
